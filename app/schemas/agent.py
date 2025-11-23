@@ -13,7 +13,7 @@ class CompletionRequest(BaseModel):
     system_prompt: Optional[str] = None
     model: Optional[str] = "kimi-k2-thinking"
     temperature: float = 0.7
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 16000
     allowed_tools: Optional[List[str]] = None  # If None, all tools are allowed. If empty list, no tools.
 
 class CompletionResponse(BaseModel):

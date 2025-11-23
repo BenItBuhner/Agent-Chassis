@@ -14,6 +14,8 @@ from app.core.config import settings
 class AgentService:
     def __init__(self, client: AsyncOpenAI):
         self.client = client
+        # Ensure the client has a generous timeout for "thinking" models
+        self.client.timeout = 600.0
 
     async def run_agent(self, request: CompletionRequest) -> ChatMessage:
         messages = [m.model_dump(exclude_none=True) for m in request.messages]
@@ -41,17 +43,27 @@ class AgentService:
         # 2. Agent Loop
         for _ in range(5):
             try:
+                # Non-streaming completion with long timeout
                 response = await self.client.chat.completions.create(
                     model=model,
                     messages=messages,
                     tools=openai_tools if openai_tools else None,
                     temperature=request.temperature,
-                    max_tokens=request.max_tokens
+                    max_tokens=request.max_tokens,
+                    stream=False,
+                    timeout=600.0
                 )
             except Exception as e:
+                # We need to catch this and re-raise or handle it
+                # Raising HTTPException to ensure FastAPI returns 500
+                print(f"OpenAI API Error: {e}")
                 raise HTTPException(status_code=500, detail=f"OpenAI API Error: {str(e)}")
 
             message = response.choices[0].message
+            
+            # Debug Log
+            print(f"Debug - Agent Step Response: {message}")
+
             messages.append(message.model_dump(exclude_none=True))
 
             if not message.tool_calls:
