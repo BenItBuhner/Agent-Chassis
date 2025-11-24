@@ -70,10 +70,16 @@ uv sync
 
 ### 4. Running the Server
 
-Start the FastAPI application using `uv run`:
+You can run the server using `uv` locally or via Docker.
 
+**Local (uv):**
 ```bash
 uv run uvicorn app.main:app --reload
+```
+
+**Docker:**
+```bash
+docker-compose up --build
 ```
 
 The API will be available at `http://localhost:8000`.
