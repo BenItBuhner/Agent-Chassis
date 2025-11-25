@@ -9,6 +9,7 @@ This project serves as a "chassis" or scaffolding for building robust agentic ap
 *   **Modular Architecture**: Built on FastAPI with a clean separation of concerns (Routes, Services, Schemas).
 *   **MCP Support**: Native integration with the **Model Context Protocol (MCP)**. Connect to any MCP-compliant server (local or remote) by simply adding it to `mcp_config.json`.
 *   **Hybrid Tooling**: Seamlessly mixes **Remote MCP Tools** and **Local Python Functions** into a single toolset for the agent.
+*   **Streaming Support**: Fully supports Server-Sent Events (SSE) for real-time feedback of content and tool execution status.
 *   **OpenAI Compatible**: Automatically translates all tools into OpenAI's JSON Schema format and manages the tool-calling loop.
 *   **Tool Filtering**: Securely restrict which tools are available per request using the `allowed_tools` parameter.
 *   **Async & Scalable**: Fully asynchronous design using `asyncio` and FastAPI.
@@ -92,7 +93,7 @@ The API will be available at `http://localhost:8000`.
 
 Send a prompt to the agent. It will autonomously select tools, execute them, and return the result.
 
-**Request Body:**
+**Request Body (Non-Streaming):**
 
 ```json
 {
@@ -101,6 +102,17 @@ Send a prompt to the agent. It will autonomously select tools, execute them, and
   ],
   "model": "kimi-k2-thinking",
   "allowed_tools": ["get_server_time"] 
+}
+```
+
+**Request Body (Streaming):**
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Calculate 5 * 5"}
+  ],
+  "stream": true
 }
 ```
 
@@ -128,6 +140,18 @@ Run the test suite with `uv run`:
 ```bash
 uv run pytest
 ```
+
+## Debugging
+
+You can run a unified smoke test script to verify the agent's functionality (Blocking, Streaming, and MCP integration):
+
+```bash
+uv run python scripts/smoke_test.py --help
+```
+
+*   `--stream`: Test streaming mode.
+*   `--mcp`: Test filesystem MCP integration.
+*   Default: Test blocking mode with local tools.
 
 ## License
 

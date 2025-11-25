@@ -17,6 +17,8 @@
 ### 1. Agent Service (`app/services/agent_service.py`)
 The central "brain" of the application. It orchestrates the autonomous execution loop:
 *   **Plan-Act-Observe Loop**: Executes a multi-turn loop (default max 5 steps) where the model can request tool calls, receive results, and iterate.
+*   **Streaming Support**: Fully supports Server-Sent Events (SSE) for real-time feedback (token-by-token generation and tool execution status).
+*   **Robust Error Handling**: The agent loop is hardened to gracefully handle API failures or tool errors without crashing the entire request.
 *   **Hybrid Tooling**: Dynamically aggregates tools from two sources:
     *   **Remote MCP Servers**: Discovered via `MCPManager`.
     *   **Local Python Functions**: Registered via `LocalToolRegistry`.
@@ -38,7 +40,7 @@ A lightweight, decorator-based system for adding local Python logic as tools.
 ### 4. Tool Translator (`app/services/tool_translator.py`)
 The universal adapter layer.
 *   **MCP Adapter**: Converts MCP `Tool` objects into OpenAI JSON Schema format.
-*   **Python Adapter**: Uses `inspect` to convert Python functions into OpenAI JSON Schema format.
+*   **Python Adapter**: Uses `inspect` to convert Python functions into OpenAI JSON Schema format, with robust type mapping (int, float, bool, list, dict).
 
 ### 5. Security & Configuration (`app/core/`)
 *   **Settings**: All config is managed via `pydantic-settings` (`app/core/config.py`), loading from `.env`.
@@ -92,20 +94,32 @@ The universal adapter layer.
 **Headers:**
 *   `X-API-Key`: (If configured)
 
-**Body:**
+**Body (Non-Streaming):**
 ```json
 {
   "messages": [
     {"role": "user", "content": "Calculate 123 + 456"}
   ],
-  "model": "kimi-k2-thinking", 
-  "system_prompt": "You are a helpful math assistant.",
+  "model": "kimi-k2-thinking",
+  "allowed_tools": ["calculate"]
+}
+```
+
+**Body (Streaming):**
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Calculate 123 + 456"}
+  ],
+  "model": "kimi-k2-thinking",
   "allowed_tools": ["calculate"],
-  "temperature": 0.7
+  "stream": true
 }
 ```
 
 ## Debugging
 Scripts in the `scripts/` directory are excluded from the package build but useful for validation:
-*   `uv run python scripts/smoke_test.py`: Runs a full end-to-end test of the agent, MCP loading, and tool execution.
-*   `uv run python scripts/debug_simple.py`: Tests basic inference connectivity without tool overhead.
+*   `uv run python scripts/smoke_test.py`: Runs the unified smoke test.
+    *   **Default**: Blocking mode (Local Calculator/Time tools).
+    *   `--stream`: Streaming mode (Server-Sent Events).
+    *   `--mcp`: Test filesystem MCP integration.
