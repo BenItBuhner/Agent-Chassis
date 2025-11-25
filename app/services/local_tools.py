@@ -1,8 +1,9 @@
-from typing import Callable, Dict
+from collections.abc import Callable
+
 
 class LocalToolRegistry:
     def __init__(self):
-        self._tools: Dict[str, Callable] = {}
+        self._tools: dict[str, Callable] = {}
 
     def register(self, func: Callable):
         """
@@ -14,20 +15,24 @@ class LocalToolRegistry:
     def get_tools(self):
         return self._tools
 
+
 local_registry = LocalToolRegistry()
+
 
 # Example local tool
 @local_registry.register
 def get_server_time():
     """Returns the current server time."""
     from datetime import datetime
+
     return datetime.now().isoformat()
+
 
 @local_registry.register
 def calculate(operation: str, a: float, b: float) -> str:
     """
     Performs basic arithmetic operations.
-    
+
     Args:
         operation: One of 'add', 'subtract', 'multiply', 'divide'
         a: First number

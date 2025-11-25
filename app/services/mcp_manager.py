@@ -1,19 +1,20 @@
 import json
 import shutil
-from pathlib import Path
-from typing import Dict, Any, List
 from contextlib import AsyncExitStack
+from pathlib import Path
+from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
 
 from app.core.config import settings
+
 
 class MCPManager:
     def __init__(self):
         self.config_path = Path(settings.MCP_CONFIG_PATH)
-        self.sessions: Dict[str, ClientSession] = {}
+        self.sessions: dict[str, ClientSession] = {}
         self.exit_stack = AsyncExitStack()
 
     async def load_servers(self):
@@ -24,11 +25,11 @@ class MCPManager:
             print(f"MCP Config file not found at {self.config_path}")
             return
 
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path) as f:
             config = json.load(f)
-        
+
         mcp_servers = config.get("mcpServers", {})
-        
+
         for server_name, server_config in mcp_servers.items():
             print(f"Loading MCP server: {server_name}")
             try:
@@ -41,53 +42,41 @@ class MCPManager:
             except Exception as e:
                 print(f"Failed to connect to {server_name}: {e}")
 
-    async def _connect_stdio_server(self, name: str, config: Dict[str, Any]):
+    async def _connect_stdio_server(self, name: str, config: dict[str, Any]):
         command = config.get("command")
         args = config.get("args", [])
         env = config.get("env")
 
         if shutil.which(command) is None:
-             print(f"Warning: Command '{command}' not found in PATH.")
+            print(f"Warning: Command '{command}' not found in PATH.")
         else:
-             # Resolve full path (helps on Windows with .cmd/.exe)
-             command = shutil.which(command)
+            # Resolve full path (helps on Windows with .cmd/.exe)
+            command = shutil.which(command)
 
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env=env
-        )
+        server_params = StdioServerParameters(command=command, args=args, env=env)
 
-        read, write = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        
-        session = await self.exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        
+        read, write = await self.exit_stack.enter_async_context(stdio_client(server_params))
+
+        session = await self.exit_stack.enter_async_context(ClientSession(read, write))
+
         await session.initialize()
         self.sessions[name] = session
         print(f"Connected to MCP server (Stdio): {name}")
 
-    async def _connect_sse_server(self, name: str, config: Dict[str, Any]):
+    async def _connect_sse_server(self, name: str, config: dict[str, Any]):
         url = config.get("url")
         headers = config.get("headers", {})
 
         # sse_client yields (read, write) streams
-        read, write = await self.exit_stack.enter_async_context(
-            sse_client(url=url, headers=headers)
-        )
+        read, write = await self.exit_stack.enter_async_context(sse_client(url=url, headers=headers))
 
-        session = await self.exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        
+        session = await self.exit_stack.enter_async_context(ClientSession(read, write))
+
         await session.initialize()
         self.sessions[name] = session
         print(f"Connected to MCP server (SSE): {name}")
 
-    async def list_tools(self) -> List[Any]:
+    async def list_tools(self) -> list[Any]:
         """
         Aggregates tools from all connected MCP servers.
         """
@@ -96,10 +85,7 @@ class MCPManager:
             try:
                 result = await session.list_tools()
                 for tool in result.tools:
-                    all_tools.append({
-                        "server": name,
-                        "tool": tool
-                    })
+                    all_tools.append({"server": name, "tool": tool})
             except Exception as e:
                 print(f"Error listing tools from {name}: {e}")
         return all_tools
@@ -108,7 +94,7 @@ class MCPManager:
         session = self.sessions.get(server_name)
         if not session:
             raise ValueError(f"Server {server_name} not found")
-        
+
         result = await session.call_tool(tool_name, arguments=arguments)
         return result
 
@@ -118,5 +104,6 @@ class MCPManager:
         """
         await self.exit_stack.aclose()
         self.sessions.clear()
+
 
 mcp_manager = MCPManager()

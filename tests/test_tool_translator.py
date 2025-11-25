@@ -1,6 +1,7 @@
-import pytest
 from mcp.types import Tool
+
 from app.services.tool_translator import ToolTranslator
+
 
 def test_mcp_to_openai_translation():
     # Mock MCP Tool
@@ -9,12 +10,9 @@ def test_mcp_to_openai_translation():
         description="Adds two numbers",
         inputSchema={
             "type": "object",
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            },
-            "required": ["a", "b"]
-        }
+            "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+            "required": ["a", "b"],
+        },
     )
 
     # Translate
@@ -27,12 +25,11 @@ def test_mcp_to_openai_translation():
     assert openai_tool["function"]["parameters"] == mcp_tool.inputSchema
     assert "a" in openai_tool["function"]["parameters"]["properties"]
 
+
 def test_convert_all():
     mcp_tool_1 = Tool(name="t1", description="d1", inputSchema={})
-    mcp_tools_list = [
-        {"server": "s1", "tool": mcp_tool_1}
-    ]
-    
+    mcp_tools_list = [{"server": "s1", "tool": mcp_tool_1}]
+
     result = ToolTranslator.convert_all(mcp_tools_list)
     assert len(result) == 1
     assert result[0]["function"]["name"] == "t1"
