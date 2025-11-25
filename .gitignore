@@ -11,5 +11,4 @@ build/
 *.egg-info/
 .coverage
 htmlcov/
-uv.lock
 scripts/
