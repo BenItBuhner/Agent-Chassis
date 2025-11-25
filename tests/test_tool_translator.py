@@ -33,3 +33,30 @@ def test_convert_all():
     result = ToolTranslator.convert_all(mcp_tools_list)
     assert len(result) == 1
     assert result[0]["function"]["name"] == "t1"
+
+
+def test_function_to_openai_translation():
+    def sample_func(x: int, y: float, z: bool, s: str = "default", d: dict = None):
+        """Sample docstring."""
+        pass
+
+    openai_tool = ToolTranslator.function_to_openai(sample_func)
+
+    assert openai_tool["type"] == "function"
+    fn = openai_tool["function"]
+    assert fn["name"] == "sample_func"
+    assert fn["description"] == "Sample docstring."
+
+    props = fn["parameters"]["properties"]
+    assert props["x"]["type"] == "integer"
+    assert props["y"]["type"] == "number"
+    assert props["z"]["type"] == "boolean"
+    assert props["s"]["type"] == "string"
+    assert props["d"]["type"] == "object"
+
+    # Check required fields (s and d have defaults, so they shouldn't be required)
+    assert "x" in fn["parameters"]["required"]
+    assert "y" in fn["parameters"]["required"]
+    assert "z" in fn["parameters"]["required"]
+    assert "s" not in fn["parameters"]["required"]
+    assert "d" not in fn["parameters"]["required"]

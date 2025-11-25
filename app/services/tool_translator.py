@@ -24,19 +24,29 @@ class ToolTranslator:
     def function_to_openai(func: Callable) -> dict[str, Any]:
         """
         Basic conversion of a Python function to OpenAI tool definition.
-        Note: This is a simplified implementation. For production, consider
-        using libraries like `instructor` or `pydantic` to generate schemas from type hints.
         """
         name = func.__name__
         description = func.__doc__ or ""
-
-        # Very basic parameter extraction (placeholder for more robust logic)
-        # In a real scenario, we would parse type hints to JSON Schema
         params = {"type": "object", "properties": {}, "required": []}
 
         sig = inspect.signature(func)
         for param_name, param in sig.parameters.items():
-            params["properties"][param_name] = {"type": "string"}  # Default to string for safety
+            # Map Python types to JSON Schema types
+            param_type = "string"  # Default
+            if param.annotation != inspect.Parameter.empty:
+                if param.annotation is int:
+                    param_type = "integer"
+                elif param.annotation is float:
+                    param_type = "number"
+                elif param.annotation is bool:
+                    param_type = "boolean"
+                elif param.annotation is list:
+                    param_type = "array"
+                elif param.annotation is dict:
+                    param_type = "object"
+
+            params["properties"][param_name] = {"type": param_type}
+
             if param.default == inspect.Parameter.empty:
                 params["required"].append(param_name)
 

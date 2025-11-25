@@ -18,6 +18,7 @@ class CompletionRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int | None = 16000
     allowed_tools: list[str] | None = None  # If None, all tools are allowed. If empty list, no tools.
+    stream: bool = False
 
 
 class CompletionResponse(BaseModel):
