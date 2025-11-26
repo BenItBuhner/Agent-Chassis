@@ -117,9 +117,17 @@ The universal adapter layer.
 }
 ```
 
-## Debugging
+## Debugging & Tools
+
 Scripts in the `scripts/` directory are excluded from the package build but useful for validation:
+
 *   `uv run python scripts/smoke_test.py`: Runs the unified smoke test.
     *   **Default**: Blocking mode (Local Calculator/Time tools).
     *   `--stream`: Streaming mode (Server-Sent Events).
-    *   `--mcp`: Test filesystem MCP integration.
+    *   `--mcp`: Test Memory MCP integration (creating entities).
+
+*   `uv run python scripts/client_test.py`: **Interactive Terminal Client**.
+    *   Full REPL interface for chatting with the agent.
+    *   Supports streaming (`--no-stream` to disable).
+    *   Supports API Key (`--api-key` or from `.env`).
+    *   Example: `uv run python scripts/client_test.py --tools calculate get_server_time`
