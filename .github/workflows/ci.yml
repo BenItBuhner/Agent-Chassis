@@ -32,4 +32,5 @@ jobs:
         run: uv run ruff check .
 
       - name: Run tests
-        run: uv run pytest
+        # Exclude integration tests that require external services (OpenAI API, Redis, PostgreSQL)
+        run: uv run pytest -m "not integration"

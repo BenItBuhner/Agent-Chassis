@@ -83,7 +83,7 @@ async def test_run_agent_stream_api_error_handling():
 
 @pytest.mark.asyncio
 async def test_run_agent_hardening_non_stream():
-    """Test that non-streaming agent raises 500 on API failure (as per current design)"""
+    """Test that non-streaming agent raises 500 on API failure with generic message (security)"""
     mock_client = AsyncMock()
     mock_client.chat.completions.create.side_effect = Exception("Critical Fail")
 
@@ -93,11 +93,13 @@ async def test_run_agent_hardening_non_stream():
     with patch("app.services.agent_service.mcp_manager") as mock_mcp:
         mock_mcp.list_tools = AsyncMock(return_value=[])
 
-        # Should raise HTTPException
+        # Should raise HTTPException with GENERIC message (not internal error details)
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc:
             await service.run_agent(request)
 
         assert exc.value.status_code == 500
-        assert "Critical Fail" in exc.value.detail
+        # Security: Internal error details should NOT be exposed to clients
+        assert exc.value.detail == "Agent execution failed"
+        assert "Critical Fail" not in exc.value.detail  # Internal details hidden

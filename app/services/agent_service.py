@@ -1,5 +1,16 @@
+"""
+Agent service for executing LLM agent loops with tool calling.
+
+Supports two operational modes:
+1. Client-side: Messages passed in request (backward compatible)
+2. Server-side: Session-based persistence with Redis/PostgreSQL
+
+Includes ownership-based access control (OSP-12) for server-side sessions.
+"""
+
 import asyncio
 import json
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -7,13 +18,27 @@ from fastapi import HTTPException
 from openai import AsyncOpenAI
 
 from app.core.config import settings
+from app.core.security import UserContext
 from app.schemas.agent import ChatMessage, CompletionRequest
 from app.services.local_tools import local_registry
 from app.services.mcp_manager import mcp_manager
+from app.services.session_manager import session_manager
 from app.services.tool_translator import ToolTranslator
+
+logger = logging.getLogger("agent_chassis.agent")
 
 
 class AgentService:
+    """
+    Orchestrates the agent execution loop with tool calling capabilities.
+
+    Handles:
+    - Tool discovery (MCP + Local)
+    - Multi-turn conversations with tool execution
+    - Streaming and non-streaming responses
+    - Session persistence (when enabled)
+    """
+
     def __init__(self, client: AsyncOpenAI):
         self.client = client
         # Ensure the client has a generous timeout for "thinking" models
@@ -36,14 +61,85 @@ class AgentService:
 
         return openai_tools, mcp_tools_list, local_tools_map
 
-    async def run_agent(self, request: CompletionRequest) -> ChatMessage:
+    async def _prepare_messages(
+        self,
+        request: CompletionRequest,
+        user_ctx: UserContext | None = None,
+    ) -> tuple[str | None, list[dict[str, Any]], bool]:
+        """
+        Prepare messages for the agent loop based on request mode.
+
+        Returns:
+            Tuple of (session_id, messages, is_new_session) where:
+            - session_id is None for client-side mode
+            - is_new_session is True if a new session was created
+        """
+        is_new_session = False
+
+        if request.is_server_side_mode:
+            # Check if this will be a new session
+            is_new_session = request.session_id is None
+
+            # Server-side mode: Load from session manager with access control
+            session_id, messages = await session_manager.get_or_create_session(
+                session_id=request.session_id,
+                messages=None,  # Don't use client messages in server mode
+                user_ctx=user_ctx,
+            )
+
+            # Add new message if provided
+            if request.message:
+                messages.append({"role": "user", "content": request.message})
+        else:
+            # Client-side mode: Use provided messages directly
+            session_id = None
+            messages = [m.model_dump(exclude_none=True) for m in request.messages]  # type: ignore[union-attr]
+
+        # Add system prompt if provided
+        if request.system_prompt:
+            # Check if system prompt already exists
+            has_system = any(m.get("role") == "system" for m in messages)
+            if not has_system:
+                messages.insert(0, {"role": "system", "content": request.system_prompt})
+
+        return session_id, messages, is_new_session
+
+    async def _save_session(
+        self,
+        session_id: str | None,
+        messages: list[dict[str, Any]],
+        request: CompletionRequest,
+        user_ctx: UserContext | None = None,
+        is_new_session: bool = False,
+    ) -> None:
+        """Save session if using server-side persistence."""
+        if session_id:
+            await session_manager.save_session(
+                session_id=session_id,
+                messages=messages,
+                system_prompt=request.system_prompt,
+                model=request.model,
+                metadata=request.metadata,
+                user_ctx=user_ctx,
+                is_new_session=is_new_session,
+            )
+
+    async def run_agent(
+        self,
+        request: CompletionRequest,
+        user_ctx: UserContext | None = None,
+    ) -> tuple[ChatMessage, str | None]:
         """
         Execute the agent loop synchronously (non-streaming).
-        Returns the final assistant message.
+
+        Args:
+            request: The completion request.
+            user_ctx: Current user context for access control.
+
+        Returns:
+            Tuple of (final_message, session_id) where session_id is None for client-side mode.
         """
-        messages = [m.model_dump(exclude_none=True) for m in request.messages]
-        if request.system_prompt:
-            messages.insert(0, {"role": "system", "content": request.system_prompt})
+        session_id, messages, is_new_session = await self._prepare_messages(request, user_ctx)
 
         model = request.model or settings.OPENAI_MODEL
         openai_tools, mcp_tools_list, local_tools_map = await self._get_tools(request)
@@ -60,14 +156,16 @@ class AgentService:
                     timeout=600.0,
                 )
             except Exception as e:
-                print(f"OpenAI API Error: {e}")
-                raise HTTPException(status_code=500, detail=f"OpenAI API Error: {str(e)}") from e
+                logger.error("OpenAI API Error: %s", e)
+                raise HTTPException(status_code=500, detail="Agent execution failed") from e
 
             message = response.choices[0].message
             messages.append(message.model_dump(exclude_none=True))
 
             if not message.tool_calls:
-                return ChatMessage(role=message.role, content=message.content)
+                # Save session before returning (owner is set on first save)
+                await self._save_session(session_id, messages, request, user_ctx, is_new_session)
+                return (ChatMessage(role=message.role, content=message.content), session_id)
 
             # Execute Tools
             for tool_call in message.tool_calls:
@@ -78,16 +176,26 @@ class AgentService:
 
                 messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result_content})
 
-        return ChatMessage(role="assistant", content="Max execution steps reached.")
+        # Save session even on max steps
+        await self._save_session(session_id, messages, request, user_ctx, is_new_session)
+        return (ChatMessage(role="assistant", content="Max execution steps reached."), session_id)
 
-    async def run_agent_stream(self, request: CompletionRequest) -> AsyncGenerator[str, None]:
+    async def run_agent_stream(
+        self,
+        request: CompletionRequest,
+        user_ctx: UserContext | None = None,
+    ) -> AsyncGenerator[str, None]:
         """
         Execute the agent loop with streaming responses.
+
+        Args:
+            request: The completion request.
+            user_ctx: Current user context for access control.
+
         Yields JSON strings representing partial updates or internal events.
+        Final yield includes session_id for server-side mode.
         """
-        messages = [m.model_dump(exclude_none=True) for m in request.messages]
-        if request.system_prompt:
-            messages.insert(0, {"role": "system", "content": request.system_prompt})
+        session_id, messages, is_new_session = await self._prepare_messages(request, user_ctx)
 
         model = request.model or settings.OPENAI_MODEL
         openai_tools, mcp_tools_list, local_tools_map = await self._get_tools(request)
@@ -157,7 +265,9 @@ class AgentService:
             messages.append(message_data)
 
             if not tool_calls_accum:
-                yield json.dumps({"type": "finish", "content": ""}) + "\n"
+                # Save session and finish (owner is set on first save)
+                await self._save_session(session_id, messages, request, user_ctx, is_new_session)
+                yield json.dumps({"type": "finish", "content": "", "session_id": session_id}) + "\n"
                 return
 
             yield json.dumps({"type": "status", "content": "Executing tools..."}) + "\n"
@@ -178,7 +288,9 @@ class AgentService:
                 messages.append({"role": "tool", "tool_call_id": tool_id, "content": result_content})
                 yield json.dumps({"type": "tool_result", "tool": tool_name, "result": result_content}) + "\n"
 
-        yield json.dumps({"type": "error", "content": "Max execution steps reached."}) + "\n"
+        # Save session even on max steps
+        await self._save_session(session_id, messages, request, user_ctx, is_new_session)
+        yield json.dumps({"type": "error", "content": "Max execution steps reached.", "session_id": session_id}) + "\n"
 
     async def _execute_tool(self, tool_call, mcp_tools_list, local_tools_map) -> str:
         """Helper for the object-based tool call (non-stream)"""

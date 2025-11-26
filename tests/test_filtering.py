@@ -1,12 +1,15 @@
-def test_tool_filtering():
-    from app.schemas.agent import CompletionRequest
+from app.schemas.agent import ChatMessage, CompletionRequest
 
+
+def test_tool_filtering():
     # Case 1: allowed_tools is None -> All tools allowed
-    req_all = CompletionRequest(messages=[], allowed_tools=None)
+    req_all = CompletionRequest(messages=[ChatMessage(role="user", content="test")], allowed_tools=None)
     assert req_all.allowed_tools is None
 
     # Case 2: allowed_tools is specific -> Only those allowed
-    req_specific = CompletionRequest(messages=[], allowed_tools=["get_server_time"])
+    req_specific = CompletionRequest(
+        messages=[ChatMessage(role="user", content="test")], allowed_tools=["get_server_time"]
+    )
     assert "get_server_time" in req_specific.allowed_tools
     assert "other_tool" not in req_specific.allowed_tools
 

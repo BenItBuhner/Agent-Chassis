@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http",
+      "headers": {}
+    },
     "memory": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
