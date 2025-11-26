@@ -7,8 +7,16 @@ from typing import Any
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from mcp.types import CallToolRequest, CallToolRequestParams
+from pydantic import BaseModel, ConfigDict
 
 from app.core.config import settings
+
+
+class PermissiveResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    content: Any = None
+    isError: bool = False
 
 
 class MCPManager:
@@ -95,8 +103,18 @@ class MCPManager:
         if not session:
             raise ValueError(f"Server {server_name} not found")
 
-        result = await session.call_tool(tool_name, arguments=arguments)
-        return result
+        # Bypass strict SDK validation by using raw request
+        # result = await session.call_tool(tool_name, arguments=arguments)
+
+        req = CallToolRequest(method="tools/call", params=CallToolRequestParams(name=tool_name, arguments=arguments))
+
+        raw_result = await session.send_request(req, PermissiveResult)
+
+        # The raw_result is now a PermissiveResult object.
+        if hasattr(raw_result, "content"):
+            return raw_result.content
+
+        return raw_result
 
     async def cleanup(self):
         """

@@ -101,9 +101,9 @@ async def main():
 
     # 3. Determine Test Logic
     if args.mcp:
-        prompt = args.prompt or "List the files in the current directory."
-        tools = ["list_directory"]
-        print("\n[Test Mode] MCP Filesystem Tool")
+        prompt = args.prompt or "Create a memory entity named 'TestEntity'."
+        tools = ["create_entities"]
+        print("\n[Test Mode] MCP Memory Tool")
     else:
         prompt = args.prompt or "Calculate 5 * 5 and then tell me the result."
         tools = ["calculate", "get_server_time"]

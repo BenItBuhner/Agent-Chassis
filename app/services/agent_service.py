@@ -104,7 +104,7 @@ class AgentService:
                     timeout=600.0,
                 )
             except Exception as e:
-                yield json.dumps({"error": f"OpenAI API Error: {str(e)}"})
+                yield json.dumps({"error": f"OpenAI API Error: {str(e)}"}) + "\n"
                 return
 
             tool_calls_accum: dict[int, dict] = {}
@@ -117,14 +117,17 @@ class AgentService:
 
                     # Check for reasoning content (DeepSeek/Kimi/etc)
                     if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                        yield json.dumps({"role": "assistant", "content": delta.reasoning_content, "type": "reasoning"})
+                        yield (
+                            json.dumps({"role": "assistant", "content": delta.reasoning_content, "type": "reasoning"})
+                            + "\n"
+                        )
 
                     if delta.role:
                         role = delta.role
 
                     if delta.content:
                         content_accum += delta.content
-                        yield json.dumps({"role": role, "content": delta.content, "type": "content"})
+                        yield json.dumps({"role": role, "content": delta.content, "type": "content"}) + "\n"
 
                     if delta.tool_calls:
                         for tc in delta.tool_calls:
@@ -143,7 +146,7 @@ class AgentService:
                             if tc.function.arguments:
                                 tool_calls_accum[idx]["function"]["arguments"] += tc.function.arguments
             except Exception as e:
-                yield json.dumps({"error": f"Stream iteration error: {str(e)}"})
+                yield json.dumps({"error": f"Stream iteration error: {str(e)}"}) + "\n"
                 return
 
             # Reconstruct message for history
@@ -154,10 +157,10 @@ class AgentService:
             messages.append(message_data)
 
             if not tool_calls_accum:
-                yield json.dumps({"type": "finish", "content": ""})
+                yield json.dumps({"type": "finish", "content": ""}) + "\n"
                 return
 
-            yield json.dumps({"type": "status", "content": "Executing tools..."})
+            yield json.dumps({"type": "status", "content": "Executing tools..."}) + "\n"
 
             # Execute Tools
             for _idx, tool_data in sorted(tool_calls_accum.items()):
@@ -173,9 +176,9 @@ class AgentService:
                     )
 
                 messages.append({"role": "tool", "tool_call_id": tool_id, "content": result_content})
-                yield json.dumps({"type": "tool_result", "tool": tool_name, "result": result_content})
+                yield json.dumps({"type": "tool_result", "tool": tool_name, "result": result_content}) + "\n"
 
-        yield json.dumps({"type": "error", "content": "Max execution steps reached."})
+        yield json.dumps({"type": "error", "content": "Max execution steps reached."}) + "\n"
 
     async def _execute_tool(self, tool_call, mcp_tools_list, local_tools_map) -> str:
         """Helper for the object-based tool call (non-stream)"""
