@@ -152,7 +152,3 @@ uv run python scripts/smoke_test.py --help
 *   `--stream`: Test streaming mode.
 *   `--mcp`: Test filesystem MCP integration.
 *   Default: Test blocking mode with local tools.
-
-## License
-
-[MIT](LICENSE)
