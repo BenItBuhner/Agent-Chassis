@@ -1,0 +1,333 @@
+---
+title: Tool Development
+---
+
+Agent Chassis supports two types of tools:
+
+1. **Local Python Tools** - Custom functions in your codebase
+2. **Remote MCP Tools** - External tools via Model Context Protocol
+
+## Local Python Tools
+
+### Creating a Tool
+
+Add a function to `app/services/local_tools.py` and decorate it:
+
+```python
+from app.services.local_tools import local_registry
+
+@local_registry.register
+def my_custom_tool(x: int, y: int) -> int:
+    """
+    Adds two numbers together.
+
+    Args:
+        x: First number
+        y: Second number
+
+    Returns:
+        The sum of x and y
+    """
+    return x + y
+```
+
+### Tool Requirements
+
+1. **Type hints** - Required for automatic schema generation
+2. **Docstring** - Used as tool description
+3. **Return value** - Must be JSON-serializable
+
+### Supported Types
+
+- `int`, `float`, `bool`
+- `str`
+- `list`, `dict`
+- Optional types: `int | None`, `Optional[int]`
+
+### Example: Calculator Tool
+
+```python
+@local_registry.register
+def calculate(operation: str, a: float, b: float) -> str:
+    """
+    Performs basic arithmetic operations.
+
+    Args:
+        operation: One of 'add', 'subtract', 'multiply', 'divide'
+        a: First number
+        b: Second number
+
+    Returns:
+        Result as a string
+    """
+    if operation == "add":
+        return str(a + b)
+    elif operation == "subtract":
+        return str(a - b)
+    elif operation == "multiply":
+        return str(a * b)
+    elif operation == "divide":
+        if b == 0:
+            return "Error: Division by zero"
+        return str(a / b)
+    else:
+        return f"Error: Unknown operation '{operation}'"
+```
+
+### Example: Time Tool
+
+```python
+@local_registry.register
+def get_server_time() -> str:
+    """
+    Returns the current server time in ISO format.
+
+    Returns:
+        ISO-formatted timestamp string
+    """
+    from datetime import datetime
+    return datetime.now().isoformat()
+```
+
+### Example: Async Tool
+
+```python
+@local_registry.register
+async def fetch_url(url: str) -> dict:
+    """
+    Fetches content from a URL.
+
+    Args:
+        url: The URL to fetch
+
+    Returns:
+        Dictionary with status and content
+    """
+    import httpx
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        return {
+            "status": response.status_code,
+            "content": response.text[:1000]  # Limit content size
+        }
+```
+
+## Remote MCP Tools
+
+MCP tools are automatically discovered from configured MCP servers. See [MCP Integration](/guides/mcp-integration) for setup.
+
+### Using MCP Tools
+
+1. **Configure MCP server** in `mcp_config.json`
+2. **Tools are auto-discovered** on server startup
+3. **Include in `allowed_tools`** in API requests
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Search for Python docs"}
+  ],
+  "model": "kimi-k2-thinking",
+  "allowed_tools": ["resolve-library-id", "get-library-docs"]
+}
+```
+
+## Tool Schema Generation
+
+Agent Chassis automatically generates OpenAI-compatible JSON schemas for all tools:
+
+### Local Tool Schema
+
+```python
+@local_registry.register
+def add_numbers(a: int, b: int) -> int:
+    """Adds two numbers."""
+    return a + b
+```
+
+**Generated schema:**
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "add_numbers",
+    "description": "Adds two numbers.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": {"type": "integer"},
+        "b": {"type": "integer"}
+      },
+      "required": ["a", "b"]
+    }
+  }
+}
+```
+
+### MCP Tool Schema
+
+MCP tools are translated from MCP `Tool` format to OpenAI format automatically.
+
+## Tool Execution
+
+### Agent Tool Calling Flow
+
+1. **Agent receives request** with `allowed_tools`
+2. **Agent selects tool** based on user query
+3. **Tool is executed** (local function or MCP call)
+4. **Result is returned** to agent
+5. **Agent processes result** and responds
+
+### Error Handling
+
+Tools should handle errors gracefully:
+
+```python
+@local_registry.register
+def safe_divide(a: float, b: float) -> str:
+    """
+    Divides two numbers safely.
+
+    Args:
+        a: Numerator
+        b: Denominator
+
+    Returns:
+        Result as string, or error message
+    """
+    try:
+        if b == 0:
+            return "Error: Division by zero"
+        return str(a / b)
+    except Exception as e:
+        return f"Error: {str(e)}"
+```
+
+## Best Practices
+
+### 1. Clear Descriptions
+
+Write clear docstrings - they become tool descriptions:
+
+```python
+@local_registry.register
+def calculate_tax(amount: float, rate: float) -> float:
+    """
+    Calculates tax on an amount.
+
+    Args:
+        amount: The base amount to tax
+        rate: Tax rate as decimal (e.g., 0.1 for 10%)
+
+    Returns:
+        The tax amount
+    """
+    return amount * rate
+```
+
+### 2. Type Hints
+
+Always use type hints for automatic validation:
+
+```python
+# Good
+def process_data(data: dict[str, str]) -> list[str]:
+    ...
+
+# Bad (no type hints)
+def process_data(data):
+    ...
+```
+
+### 3. Input Validation
+
+Validate inputs before processing:
+
+```python
+@local_registry.register
+def process_age(age: int) -> str:
+    """Processes an age value."""
+    if age < 0:
+        return "Error: Age cannot be negative"
+    if age > 150:
+        return "Error: Age seems unrealistic"
+    return f"Age: {age}"
+```
+
+### 4. Async for I/O Operations
+
+Use async for network calls, database queries, etc.:
+
+```python
+@local_registry.register
+async def fetch_data(url: str) -> dict:
+    """Fetches data from a URL."""
+    import httpx
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        return {"status": response.status_code, "data": response.json()}
+```
+
+### 5. Tool Filtering
+
+Always filter tools per request for security:
+
+```json
+{
+  "allowed_tools": ["safe_tool_1", "safe_tool_2"]  // Only allow specific tools
+}
+```
+
+## Testing Tools
+
+### Unit Testing
+
+Test tools independently:
+
+```python
+from app.services.local_tools import local_registry
+
+def test_calculate_tool():
+    calculate = local_registry.get_tools()["calculate"]
+    result = calculate("add", 5, 3)
+    assert result == "8"
+```
+
+### Integration Testing
+
+Test tools via the agent:
+
+```python
+async def test_agent_with_tool():
+    response = await agent_completion(
+        messages=[{"role": "user", "content": "Calculate 5+3"}],
+        allowed_tools=["calculate"]
+    )
+    assert "8" in response.content
+```
+
+## Tool Registry
+
+Access registered tools programmatically:
+
+```python
+from app.services.local_tools import local_registry
+
+# Get all tools
+tools = local_registry.get_tools()
+
+# Check if tool exists
+if "calculate" in tools:
+    calculate_func = tools["calculate"]
+```
+
+## Next Steps
+
+- See [MCP Integration](/guides/mcp-integration) for remote tools
+- Check [API Reference](/api-reference) for tool usage in requests
+- Review existing tools in `app/services/local_tools.py` for examples
+
+
+
+
+

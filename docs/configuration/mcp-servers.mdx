@@ -1,0 +1,254 @@
+---
+title: MCP Servers Configuration
+---
+
+MCP (Model Context Protocol) servers are configured in `mcp_config.json`. This file defines which external tools and data sources your agent can access.
+
+## Configuration File
+
+Create or edit `mcp_config.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-name"]
+    }
+  }
+}
+```
+
+## Transport Types
+
+### Stdio (Local Subprocess)
+
+For local Node.js-based MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}
+```
+
+**Requirements:**
+- Node.js installed
+- `npx` available in PATH
+- Server package available on npm
+
+### SSE (Server-Sent Events)
+
+For remote MCP servers using SSE:
+
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://mcp.example.com/sse",
+      "transport": "sse",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      }
+    }
+  }
+}
+```
+
+### Streamable HTTP
+
+For remote MCP servers using HTTP streaming:
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http",
+      "headers": {}
+    }
+  }
+}
+```
+
+## Built-in Servers
+
+### Context7
+
+Documentation search and library information:
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+**Tools:**
+- `resolve-library-id` - Find library IDs
+- `get-library-docs` - Fetch documentation
+
+### Memory Server
+
+Persistent memory/knowledge graph:
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}
+```
+
+**Tools:**
+- `create_entity` - Create entities
+- `search_entities` - Search knowledge graph
+- `update_entity` - Update entities
+
+### Filesystem Server
+
+Local filesystem access:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+**Note:** The last argument (`.`) is the root directory. Change for different paths.
+
+## Authentication
+
+### HTTP Headers
+
+For servers requiring authentication:
+
+```json
+{
+  "mcpServers": {
+    "authenticated-server": {
+      "url": "https://mcp.example.com/mcp",
+      "transport": "streamable-http",
+      "headers": {
+        "Authorization": "Bearer your-token",
+        "X-API-Key": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+### OAuth Tokens
+
+For OAuth-authenticated servers, configure in `.env`:
+
+```env
+OAUTH_TOKENS_PATH=.mcp_tokens
+OAUTH_REDIRECT_URI=http://localhost:3000/callback
+```
+
+Tokens are stored in `OAUTH_TOKENS_PATH` and automatically refreshed.
+
+## Complete Example
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "custom-server": {
+      "url": "https://custom.mcp.server.com/mcp",
+      "transport": "streamable-http",
+      "headers": {
+        "Authorization": "Bearer token-here"
+      }
+    }
+  }
+}
+```
+
+## Custom Server Path
+
+Change the config file path via environment variable:
+
+```env
+MCP_CONFIG_PATH=custom/path/mcp_config.json
+```
+
+## Verification
+
+Check server connection on startup:
+
+```bash
+Starting up Agent Chassis...
+Loading MCP server: Context7
+Connected to MCP server (Streamable HTTP): Context7
+Loading MCP server: memory
+Connected to MCP server (Stdio): memory
+```
+
+## Troubleshooting
+
+### Server Not Connecting
+
+1. **Check JSON syntax** - Validate with JSON linter
+2. **Verify transport type** - Matches server capabilities
+3. **Check network** - For remote servers
+4. **Review logs** - Error messages in startup logs
+
+### Stdio Server Issues
+
+- **Node.js not found:** Install Node.js
+- **npx not found:** Install npm (comes with Node.js)
+- **Package not found:** Check package name on npm
+
+### Authentication Issues
+
+- **Invalid token:** Check token is valid and not expired
+- **Missing headers:** Verify `headers` configuration
+- **OAuth errors:** Check `OAUTH_TOKENS_PATH` and redirect URI
+
+## Best Practices
+
+1. **Use local servers** for development
+2. **Use remote servers** for production
+3. **Secure tokens** - Don't commit tokens to git
+4. **Test connections** - Verify on startup
+5. **Monitor usage** - Watch for rate limits
+
+## Next Steps
+
+- See [MCP Integration Guide](/guides/mcp-integration) for usage
+- Check [Tool Development](/guides/tool-development) for creating tools
+- Review [Environment Variables](/configuration/environment-variables) for MCP settings
+
+
+
+
+

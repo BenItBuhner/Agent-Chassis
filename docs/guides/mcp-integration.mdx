@@ -1,0 +1,277 @@
+---
+title: MCP Integration
+---
+
+Agent Chassis has native support for the **Model Context Protocol (MCP)**, allowing you to connect external data sources and tools seamlessly.
+
+## What is MCP?
+
+MCP (Model Context Protocol) is a standard protocol for connecting AI agents to external data sources, tools, and services. Agent Chassis supports three transport methods:
+
+1. **Stdio** - Local subprocess communication
+2. **SSE** - Server-Sent Events (remote HTTP)
+3. **Streamable HTTP** - HTTP-based streaming (remote)
+
+## Configuration
+
+MCP servers are configured in `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-name"]
+    }
+  }
+}
+```
+
+### Stdio Transport (Local)
+
+For local Node.js-based MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+### SSE Transport (Remote)
+
+For remote MCP servers using Server-Sent Events:
+
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://mcp.example.com/sse",
+      "transport": "sse",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      }
+    }
+  }
+}
+```
+
+### Streamable HTTP Transport (Remote)
+
+For remote MCP servers using HTTP streaming:
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http",
+      "headers": {}
+    }
+  }
+}
+```
+
+## Built-in MCP Servers
+
+### Context7
+
+Documentation search and library information:
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+**Tools available:**
+- `resolve-library-id` - Find library IDs
+- `get-library-docs` - Fetch documentation
+
+### Memory Server
+
+Persistent memory/knowledge graph:
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}
+```
+
+**Tools available:**
+- `create_entity` - Create entities in knowledge graph
+- `search_entities` - Search the knowledge graph
+- `update_entity` - Update entity properties
+
+## Using MCP Tools
+
+### 1. Tools are Auto-Discovered
+
+When you start the server, MCP tools are automatically discovered and registered:
+
+```bash
+Starting up Agent Chassis...
+Loading MCP server: Context7
+Connected to MCP server (Streamable HTTP): Context7
+Loading MCP server: memory
+Connected to MCP server (Stdio): memory
+```
+
+### 2. Use Tools in Agent Requests
+
+Include MCP tools in `allowed_tools`:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Search for Python documentation"}
+  ],
+  "model": "kimi-k2-thinking",
+  "allowed_tools": ["resolve-library-id", "get-library-docs"]
+}
+```
+
+### 3. Tool Filtering
+
+Restrict which tools are available per request:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "What time is it?"}
+  ],
+  "model": "kimi-k2-thinking",
+  "allowed_tools": ["get_server_time"]  // Only allow this tool
+}
+```
+
+## Hybrid Tooling
+
+Agent Chassis seamlessly mixes **MCP tools** and **local Python tools**:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Calculate 5*5 and search for math docs"}
+  ],
+  "model": "kimi-k2-thinking",
+  "allowed_tools": [
+    "calculate",              // Local Python tool
+    "resolve-library-id"      // MCP tool
+  ]
+}
+```
+
+## Tool Translation
+
+All tools (MCP and local) are automatically translated to OpenAI's JSON Schema format:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "calculate",
+    "description": "Performs basic arithmetic operations.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "operation": {"type": "string"},
+        "a": {"type": "number"},
+        "b": {"type": "number"}
+      }
+    }
+  }
+}
+```
+
+## OAuth for MCP Servers
+
+Some MCP servers require OAuth authentication. Configure OAuth tokens:
+
+```env
+OAUTH_TOKENS_PATH=.mcp_tokens
+OAUTH_REDIRECT_URI=http://localhost:3000/callback
+```
+
+Tokens are stored in the `OAUTH_TOKENS_PATH` directory and automatically refreshed.
+
+## Troubleshooting
+
+### MCP Server Not Connecting
+
+1. **Check server configuration** in `mcp_config.json`
+2. **Verify transport type** matches server capabilities
+3. **Check network connectivity** for remote servers
+4. **Review server logs** for error messages
+
+### Tools Not Available
+
+1. **Verify MCP server is loaded** (check startup logs)
+2. **Check `allowed_tools`** includes the tool name
+3. **Verify tool name** matches exactly (case-sensitive)
+
+### Stdio Server Hanging
+
+- Ensure Node.js is installed: `node --version`
+- Check `npx` is available: `npx --version`
+- Verify command and args are correct
+
+### Remote Server Authentication
+
+- Check `headers` configuration in `mcp_config.json`
+- Verify token is valid and not expired
+- Ensure server supports the transport type
+
+## Best Practices
+
+1. **Use local servers** for development/testing
+2. **Use remote servers** for production (better reliability)
+3. **Filter tools** per request for security
+4. **Monitor tool usage** for rate limits
+5. **Cache tool results** when possible
+
+## Example: Full MCP Setup
+
+```json
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "streamable-http"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+See [MCP Servers Configuration](/configuration/mcp-servers) for more details.
+
+
+
+
+

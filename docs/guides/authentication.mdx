@@ -1,0 +1,247 @@
+---
+title: Authentication
+---
+
+Agent Chassis supports two authentication methods:
+
+1. **API Key Authentication** (Simple, legacy)
+2. **JWT-Based User Authentication** (OSP-14, with Google OAuth)
+
+## API Key Authentication
+
+The simplest authentication method. Set `CHASSIS_API_KEY` in your `.env` file:
+
+```env
+CHASSIS_API_KEY=your-secret-api-key-here
+```
+
+Then include it in requests:
+
+```bash
+curl -H "X-API-Key: your-secret-api-key-here" ...
+```
+
+**Use cases:**
+- Simple API protection
+- Development/testing
+- Single-user deployments
+
+## JWT-Based User Authentication
+
+Full user account system with JWT tokens, email verification, and Google OAuth.
+
+### Enable User Authentication
+
+Set in `.env`:
+
+```env
+ENABLE_USER_AUTH=true
+JWT_SECRET_KEY=your-secure-secret-key-minimum-32-characters
+```
+
+### Registration Flow
+
+1. **Register a new user:**
+
+```bash
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123",
+  "display_name": "John Doe"
+}
+```
+
+**Password Requirements:**
+- Minimum 8 characters
+- At least one letter
+- At least one digit
+
+2. **Verify email:**
+
+A verification code is sent to the user's email. Verify with:
+
+```bash
+POST /api/v1/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+```
+
+3. **Login:**
+
+```bash
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123"
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 1800
+}
+```
+
+4. **Use the token:**
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." ...
+```
+
+### Google OAuth
+
+One-click signup/login via Google.
+
+**Setup:**
+
+1. Create Google OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/)
+2. Configure in `.env`:
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+3. **Client-side:** Use Google Sign-In SDK to get an ID token
+4. **Send to API:**
+
+```bash
+POST /api/v1/auth/google
+Content-Type: application/json
+
+{
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
+}
+```
+
+**Response:** Same as `/auth/login` - returns access and refresh tokens.
+
+### Token Refresh
+
+Access tokens expire after 30 minutes (configurable). Refresh with:
+
+```bash
+POST /api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### Password Reset
+
+1. **Request reset:**
+
+```bash
+POST /api/v1/auth/password-reset
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+2. **Confirm reset:**
+
+```bash
+POST /api/v1/auth/password-reset/confirm
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "new_password": "NewSecurePass123"
+}
+```
+
+### Get Current User
+
+```bash
+GET /api/v1/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "id": "user-uuid",
+  "email": "user@example.com",
+  "email_verified": true,
+  "has_google_auth": false,
+  "display_name": "John Doe",
+  "created_at": "2024-01-01T00:00:00Z",
+  "is_admin": false
+}
+```
+
+## Email Configuration
+
+For email verification and password reset, configure SMTP:
+
+```env
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+EMAIL_FROM=noreply@yourdomain.com
+```
+
+**Alternative providers:**
+- SendGrid: Set `EMAIL_PROVIDER=sendgrid` and `SENDGRID_API_KEY`
+- Resend: Set `EMAIL_PROVIDER=resend` and `RESEND_API_KEY`
+
+## Security Features
+
+### Rate Limiting
+
+- **Login attempts:** 5 per 15 minutes per IP
+- **Verification emails:** 1 per minute per email
+- **Password reset:** Same as verification emails
+
+### Token Security
+
+- **Access tokens:** Short-lived (30 minutes default)
+- **Refresh tokens:** Longer-lived (7 days default)
+- **JWT algorithm:** HS256 (configurable)
+- **Secret key:** Minimum 32 characters recommended
+
+### Password Security
+
+- **Hashing:** bcrypt with cost factor 12
+- **Requirements:** Minimum 8 chars, letter + digit
+- **Storage:** Never stored in plaintext
+
+## Access Control
+
+When authentication is enabled, sessions are owned by the creator:
+
+- **New sessions:** Only accessible by creator
+- **Public sessions:** Set `is_public: true` to allow anyone
+- **Whitelist:** Explicitly allow specific user IDs
+- **Blacklist:** Explicitly block specific user IDs
+
+See [Persistence Guide](/guides/persistence) for session access control details.
+
+## Configuration Reference
+
+See [Environment Variables](/configuration/environment-variables) for all authentication-related settings.
+
+
+
+
+

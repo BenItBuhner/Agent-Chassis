@@ -1,0 +1,365 @@
+---
+title: Environment Variables
+---
+
+Agent Chassis is configured via environment variables. Copy `.env.example` to `.env` and set your values.
+
+## Required Variables
+
+### OpenAI Configuration
+
+```env
+OPENAI_API_KEY=sk-...
+```
+
+Your OpenAI API key (or compatible provider).
+
+```env
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+Optional. Defaults to OpenAI's API. Use for compatible providers.
+
+```env
+OPENAI_MODEL=kimi-k2-thinking
+```
+
+Default model to use. Defaults to `kimi-k2-thinking`.
+
+## Optional: Persistence
+
+### Enable Persistence
+
+```env
+ENABLE_PERSISTENCE=false
+```
+
+Set to `true` to enable Redis and PostgreSQL session storage.
+
+### Redis Configuration
+
+```env
+REDIS_URL=redis://localhost:6379/0
+```
+
+Redis connection URL for session caching.
+
+**Upstash Redis example:**
+```env
+REDIS_URL=rediss://default:password@golden-humpback-43413.upstash.io:6379
+```
+
+### PostgreSQL Configuration
+
+```env
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/agent_chassis
+```
+
+PostgreSQL connection URL for durable storage.
+
+**Supabase example:**
+```env
+DATABASE_URL=postgresql+asyncpg://postgres.user:password@aws-1-us-east-2.pooler.supabase.com:5432/postgres
+```
+
+### Session Configuration
+
+```env
+SESSION_TTL_SECONDS=86400
+```
+
+Redis cache TTL in seconds (default: 24 hours).
+
+```env
+SESSION_MAX_MESSAGES=100
+```
+
+Maximum messages per session before truncation.
+
+## Optional: User Authentication
+
+### Enable User Auth
+
+```env
+ENABLE_USER_AUTH=false
+```
+
+Set to `true` to enable JWT-based user authentication.
+
+### JWT Configuration
+
+```env
+JWT_SECRET_KEY=your-secure-secret-key-minimum-32-characters
+```
+
+**Required if `ENABLE_USER_AUTH=true`.** Minimum 32 characters recommended.
+
+```env
+JWT_ALGORITHM=HS256
+```
+
+JWT signing algorithm (default: HS256).
+
+```env
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+Access token expiration in minutes (default: 30).
+
+```env
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+```
+
+Refresh token expiration in days (default: 7).
+
+### Google OAuth
+
+```env
+GOOGLE_CLIENT_ID=your-google-client-id
+```
+
+Google OAuth client ID (optional).
+
+```env
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+Google OAuth client secret (optional).
+
+### Email Service
+
+```env
+EMAIL_PROVIDER=smtp
+```
+
+Email provider: `smtp`, `sendgrid`, or `resend`.
+
+```env
+SMTP_HOST=smtp.gmail.com
+```
+
+SMTP server hostname.
+
+```env
+SMTP_PORT=587
+```
+
+SMTP server port (default: 587).
+
+```env
+SMTP_USER=your-email@gmail.com
+```
+
+SMTP username (usually your email).
+
+```env
+SMTP_PASSWORD=your-app-password
+```
+
+SMTP password (use app password for Gmail).
+
+```env
+EMAIL_FROM=noreply@yourdomain.com
+```
+
+From address for emails.
+
+### Alternative Email Providers
+
+**SendGrid:**
+```env
+EMAIL_PROVIDER=sendgrid
+SENDGRID_API_KEY=your-sendgrid-api-key
+```
+
+**Resend:**
+```env
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=your-resend-api-key
+```
+
+### Verification Configuration
+
+```env
+VERIFICATION_CODE_EXPIRE_MINUTES=15
+```
+
+Email verification code expiration (default: 15 minutes).
+
+```env
+VERIFICATION_MAX_ATTEMPTS=3
+```
+
+Maximum verification attempts per code (default: 3).
+
+```env
+VERIFICATION_RATE_LIMIT_SECONDS=60
+```
+
+Rate limit for verification emails (default: 60 seconds = 1 per minute).
+
+## Security
+
+### API Key Authentication
+
+```env
+CHASSIS_API_KEY=your-secret-api-key
+```
+
+Optional API key for simple authentication. Include in `X-API-Key` header.
+
+### CORS Configuration
+
+```env
+CORS_ORIGINS=["*"]
+```
+
+Allowed CORS origins. Use `["https://yourdomain.com"]` for production.
+
+```env
+CORS_ALLOW_CREDENTIALS=true
+```
+
+Allow credentials in CORS requests.
+
+```env
+CORS_ALLOW_METHODS=["*"]
+```
+
+Allowed HTTP methods.
+
+```env
+CORS_ALLOW_HEADERS=["*"]
+```
+
+Allowed HTTP headers.
+
+### Rate Limiting
+
+```env
+LOGIN_RATE_LIMIT_ATTEMPTS=5
+```
+
+Maximum failed login attempts per window (default: 5).
+
+```env
+LOGIN_RATE_LIMIT_WINDOW_SECONDS=900
+```
+
+Login rate limit window in seconds (default: 900 = 15 minutes).
+
+```env
+API_RATE_LIMIT_PER_MINUTE=60
+```
+
+General API rate limit per minute (default: 60).
+
+### Input Size Limits
+
+```env
+MAX_MESSAGE_LENGTH=100000
+```
+
+Maximum message content length in characters (default: 100,000 ~100KB).
+
+```env
+MAX_METADATA_SIZE=10000
+```
+
+Maximum metadata size in bytes (default: 10,000 ~10KB).
+
+```env
+MAX_MESSAGES_PER_REQUEST=100
+```
+
+Maximum messages per request in client-side mode (default: 100).
+
+## MCP Configuration
+
+### MCP Config Path
+
+```env
+MCP_CONFIG_PATH=mcp_config.json
+```
+
+Path to MCP servers configuration file (default: `mcp_config.json`).
+
+### OAuth for MCP Servers
+
+```env
+OAUTH_TOKENS_PATH=.mcp_tokens
+```
+
+Directory for storing OAuth tokens for MCP servers.
+
+```env
+OAUTH_REDIRECT_URI=http://localhost:3000/callback
+```
+
+OAuth redirect URI for MCP servers.
+
+## Application Settings
+
+### Project Name
+
+```env
+PROJECT_NAME=Agent Chassis
+```
+
+Project name (used in API docs).
+
+### API Version
+
+```env
+API_V1_STR=/api/v1
+```
+
+API version prefix (default: `/api/v1`).
+
+## Complete Example
+
+```env
+# Required
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=kimi-k2-thinking
+
+# Optional: Persistence
+ENABLE_PERSISTENCE=true
+REDIS_URL=redis://localhost:6379/0
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/agent_chassis
+
+# Optional: User Auth
+ENABLE_USER_AUTH=true
+JWT_SECRET_KEY=your-secure-secret-key-minimum-32-characters
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+EMAIL_FROM=noreply@yourdomain.com
+
+# Security
+CHASSIS_API_KEY=your-api-key
+CORS_ORIGINS=["https://yourdomain.com"]
+
+# MCP
+MCP_CONFIG_PATH=mcp_config.json
+```
+
+## Validation
+
+Agent Chassis validates configuration on startup:
+
+- **JWT_SECRET_KEY** must be set if `ENABLE_USER_AUTH=true`
+- **JWT_SECRET_KEY** should be at least 32 characters
+- **Auto-generation** of JWT_SECRET_KEY in development (with warning)
+
+Check startup logs for configuration warnings.
+
+
+
+
+
