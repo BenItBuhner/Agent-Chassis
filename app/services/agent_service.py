@@ -77,6 +77,12 @@ class AgentService:
         is_new_session = False
 
         if request.is_server_side_mode:
+            # Reject server-side mode when persistence is disabled to avoid handing out fake session IDs
+            if not session_manager.persistence_enabled:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Server-side sessions require persistence. Enable persistence or send full messages instead.",
+                )
             # Check if this will be a new session
             is_new_session = request.session_id is None
 

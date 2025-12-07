@@ -26,6 +26,39 @@ class MockChunk:
 
 
 @pytest.mark.asyncio
+async def test_run_agent_server_mode_rejected_when_persistence_disabled():
+    """Server-side mode should fail fast without persistence to avoid fake session IDs"""
+    mock_client = AsyncMock()
+    service = AgentService(mock_client)
+    request = CompletionRequest(session_id="abc123", message="Hello", stream=False)
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        await service.run_agent(request)
+
+    assert exc.value.status_code == 400
+    assert "persistence" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_run_agent_stream_server_mode_rejected_when_persistence_disabled():
+    """Streaming server-side mode should also fail fast without persistence"""
+    mock_client = AsyncMock()
+    service = AgentService(mock_client)
+    request = CompletionRequest(session_id="abc123", message="Hello", stream=True)
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        async for _ in service.run_agent_stream(request):
+            pass
+
+    assert exc.value.status_code == 400
+    assert "persistence" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
 async def test_run_agent_stream_content_only():
     mock_client = AsyncMock()
 

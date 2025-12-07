@@ -74,6 +74,8 @@ Expected response:
 
 ## Usage
 
+> Server-side mode is only available when `ENABLE_PERSISTENCE=true` and at least one storage backend (Redis or PostgreSQL) is reachable. If persistence is off or unavailable, calls that supply `session_id` or `message` (server-side mode) will be rejected; send full `messages` instead.
+
 ### Client-Side Mode (No Persistence)
 
 Pass full message history in request:
@@ -218,12 +220,11 @@ SESSION_MAX_MESSAGES=100
 ```
 
 ## Graceful Degradation
-
 If persistence is disabled or unavailable:
 
-- **Client-side mode** continues to work
-- **Server-side mode** returns errors for session operations
-- **No data loss** - graceful fallback
+- **Server-side mode is blocked** – requests with `session_id`/`message` return 400 and no `session_id` is issued
+- **Client-side mode** continues to work; send the full `messages` array each call
+- **No silent data loss** – conversations are not “pretend saved” when storage is off
 
 ## Database Schema
 

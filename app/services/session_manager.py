@@ -91,8 +91,8 @@ class SessionManager:
             # Persistence disabled - treat as client-side mode
             if messages is not None:
                 return (None, messages)
-            # No messages and no persistence - create ephemeral session
-            return (str(uuid.uuid4()), [])
+            # No messages and no persistence - return empty history without issuing session IDs
+            return (None, [])
 
         # MODE 2: Server-side persistence with existing session
         if session_id:
