@@ -1,3 +1,6 @@
+from enum import Enum
+
+import pytest
 from mcp.types import Tool
 
 from app.services.tool_translator import ToolTranslator
@@ -60,3 +63,73 @@ def test_function_to_openai_translation():
     assert "z" in fn["parameters"]["required"]
     assert "s" not in fn["parameters"]["required"]
     assert "d" not in fn["parameters"]["required"]
+
+
+def test_function_to_openai_typed_collections_and_enums_are_flattened_to_string():
+    """Document current weakness: typed collections/enums are treated as generic strings."""
+
+    class Color(Enum):
+        RED = "red"
+        BLUE = "blue"
+
+    def sample_func(nums: list[int], payload: dict[str, int] | None = None, choice: Color = Color.RED):
+        pass
+
+    tool = ToolTranslator.function_to_openai(sample_func)
+    props = tool["function"]["parameters"]["properties"]
+    required = tool["function"]["parameters"]["required"]
+
+    # Typed list/dict/enum collapse to string today (missing richer schema)
+    assert props["nums"]["type"] == "string"
+    assert props["payload"]["type"] == "string"
+    assert props["choice"]["type"] == "string"
+
+    # Only nums lacks a default, so it is the only required field
+    assert required == ["nums"]
+
+
+@pytest.mark.xfail(strict=True, reason="Optional/default None should avoid required + keep type fidelity")
+def test_function_to_openai_optional_should_not_be_required():
+    def sample_func(amount: int | None = None):
+        """Compute with an optional amount."""
+        pass
+
+    tool = ToolTranslator.function_to_openai(sample_func)
+    props = tool["function"]["parameters"]["properties"]
+    required = tool["function"]["parameters"]["required"]
+
+    assert props["amount"]["type"] == "integer"
+    assert "amount" not in required
+
+
+@pytest.mark.xfail(strict=True, reason="Per-parameter docstrings are dropped from schema")
+def test_function_to_openai_param_description_is_lost():
+    def sample_func(count: int):
+        """
+        Do something.
+
+        Args:
+            count: number of items to process
+        """
+        pass
+
+    tool = ToolTranslator.function_to_openai(sample_func)
+    props = tool["function"]["parameters"]["properties"]
+    assert props["count"]["description"] == "number of items to process"
+
+
+def test_mcp_to_openai_passes_through_schema_without_validation():
+    """Current behavior: mcp_to_openai does no schema validation, just passes inputSchema."""
+    schema = {"type": "object", "properties": {"a": {"type": "number"}}}
+    mcp_tool = Tool(name="unvalidated", description=None, inputSchema=schema)
+
+    tool = ToolTranslator.mcp_to_openai(mcp_tool)
+    assert tool["function"]["parameters"] == schema
+
+
+@pytest.mark.xfail(strict=True, reason="Should reject non-dict schemas instead of returning invalid parameters")
+def test_mcp_to_openai_rejects_non_mapping_schema():
+    mcp_tool = Tool(name="broken", description="bad schema", inputSchema="not-a-dict")
+
+    with pytest.raises(TypeError):
+        ToolTranslator.mcp_to_openai(mcp_tool)

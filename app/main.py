@@ -19,6 +19,8 @@ from fastapi.responses import JSONResponse
 from app.api.v1.routes import api_router
 from app.core.config import settings
 from app.services.mcp_manager import mcp_manager
+from app.services.rate_limiter import rate_limit_middleware
+from app.services.redis_cache import redis_cache
 
 # Configure structured logging
 logging.basicConfig(
@@ -53,7 +55,6 @@ async def lifespan(app: FastAPI):
 
         # Import here to avoid circular imports and allow optional usage
         from app.services.database import database
-        from app.services.redis_cache import redis_cache
 
         # Connect Redis (fast cache) - using sanitized URL for logging
         redis_connected = await redis_cache.connect()
@@ -74,6 +75,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Persistence disabled - using client-side message handling only")
 
+    # Ensure Redis is available for rate limiting even if persistence is off
+    if settings.ENABLE_RATE_LIMITING and not redis_cache.is_available:
+        connected = await redis_cache.connect()
+        if connected:
+            logger.info("Redis connected for rate limiting at %s", settings.sanitize_url(settings.REDIS_URL))
+        else:
+            logger.error("Rate limiting enabled but Redis is unavailable")
+
     # Log security configuration status
     if settings.ENABLE_USER_AUTH:
         logger.info("User authentication ENABLED (JWT + OAuth)")
@@ -91,7 +100,6 @@ async def lifespan(app: FastAPI):
     # Clean up persistence connections if enabled
     if settings.ENABLE_PERSISTENCE:
         from app.services.database import database
-        from app.services.redis_cache import redis_cache
 
         await redis_cache.close()
         await database.close()
@@ -147,6 +155,10 @@ async def add_security_headers(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
 
     return response
+
+
+# Rate limiting middleware (applies to API routes only)
+app.middleware("http")(rate_limit_middleware)
 
 
 @app.middleware("http")

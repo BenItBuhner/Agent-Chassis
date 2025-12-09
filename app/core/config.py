@@ -74,7 +74,11 @@ class Settings(BaseSettings):
     # Rate Limiting Configuration
     LOGIN_RATE_LIMIT_ATTEMPTS: int = 5  # Max failed login attempts
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 900  # 15 minute window
-    API_RATE_LIMIT_PER_MINUTE: int = 60  # General API rate limit
+    # Global API rate limiting (disabled by default)
+    ENABLE_RATE_LIMITING: bool = False
+    RATE_LIMIT_GLOBAL_PER_MINUTE: int = 120  # Global ceiling
+    RATE_LIMIT_PER_USER_PER_MINUTE: int = 60  # Per-user/IP ceiling
+    RATE_LIMIT_WINDOW_SECONDS: int = 60  # Fixed window size
 
     # Input Size Limits
     MAX_MESSAGE_LENGTH: int = 100000  # ~100KB per message

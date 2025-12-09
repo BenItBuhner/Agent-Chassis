@@ -2,8 +2,10 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from mcp.types import Tool
 
 from app.schemas.agent import CompletionRequest
+from app.services import agent_service
 from app.services.agent_service import AgentService
 
 
@@ -136,3 +138,35 @@ async def test_run_agent_hardening_non_stream():
         # Security: Internal error details should NOT be exposed to clients
         assert exc.value.detail == "Agent execution failed"
         assert "Critical Fail" not in exc.value.detail  # Internal details hidden
+
+
+@pytest.mark.asyncio
+async def test_get_tools_merge_and_filter(monkeypatch):
+    """Smoke: ensure _get_tools merges MCP + local then filters by allowed_tools."""
+    mock_client = AsyncMock()
+    service = AgentService(mock_client)
+
+    mcp_tool = Tool(
+        name="remote_tool",
+        description="remote",
+        inputSchema={"type": "object", "properties": {"x": {"type": "number"}}},
+    )
+
+    monkeypatch.setattr(
+        agent_service.mcp_manager,
+        "list_tools",
+        AsyncMock(return_value=[{"server": "s1", "tool": mcp_tool}]),
+    )
+
+    def local_example(y: int):
+        return y
+
+    monkeypatch.setattr(agent_service.local_registry, "get_tools", lambda: {"local_example": local_example})
+
+    request = CompletionRequest(messages=[{"role": "user", "content": "ping"}], allowed_tools=["remote_tool"])
+
+    openai_tools, mcp_tools_list, local_tools_map = await service._get_tools(request)
+
+    assert [t["function"]["name"] for t in openai_tools] == ["remote_tool"]
+    assert mcp_tools_list[0]["tool"].name == "remote_tool"
+    assert "local_example" in local_tools_map
