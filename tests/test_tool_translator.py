@@ -66,7 +66,7 @@ def test_function_to_openai_translation():
 
 
 def test_function_to_openai_typed_collections_and_enums_are_flattened_to_string():
-    """Document current weakness: typed collections/enums are treated as generic strings."""
+    """Typed collections and enums should retain structure when possible."""
 
     class Color(Enum):
         RED = "red"
@@ -79,16 +79,16 @@ def test_function_to_openai_typed_collections_and_enums_are_flattened_to_string(
     props = tool["function"]["parameters"]["properties"]
     required = tool["function"]["parameters"]["required"]
 
-    # Typed list/dict/enum collapse to string today (missing richer schema)
-    assert props["nums"]["type"] == "string"
-    assert props["payload"]["type"] == "string"
+    assert props["nums"]["type"] == "array"
+    assert props["nums"]["items"]["type"] == "integer"
+    assert props["payload"]["type"] == "object"
     assert props["choice"]["type"] == "string"
+    assert set(props["choice"]["enum"]) == {"red", "blue"}
 
     # Only nums lacks a default, so it is the only required field
     assert required == ["nums"]
 
 
-@pytest.mark.xfail(strict=True, reason="Optional/default None should avoid required + keep type fidelity")
 def test_function_to_openai_optional_should_not_be_required():
     def sample_func(amount: int | None = None):
         """Compute with an optional amount."""

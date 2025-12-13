@@ -39,6 +39,15 @@ def require_user_auth_enabled():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="User authentication is not enabled. Set ENABLE_USER_AUTH=true to enable.",
         )
+    # Require backing stores (DB + Redis) to be available
+    from app.services.database import database
+    from app.services.redis_cache import redis_cache
+
+    if not database.is_available or not redis_cache.is_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="User authentication storage is unavailable (Redis/DB not connected).",
+        )
 
 
 # =============================================================================

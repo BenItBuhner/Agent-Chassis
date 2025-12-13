@@ -234,11 +234,11 @@ class SessionManager:
             session_data = {
                 "id": session_id,
                 "messages": messages,
-                "system_prompt": system_prompt,
-                "model": model,
+                "system_prompt": system_prompt if system_prompt is not None else existing_data.get("system_prompt"),
+                "model": model if model is not None else existing_data.get("model"),
                 "updated_at": datetime.now(UTC).isoformat(),
                 "message_count": len(messages),
-                "metadata": metadata or {},
+                "metadata": metadata if metadata is not None else existing_data.get("metadata", {}),
                 # Preserve access control fields from existing data
                 "created_at": existing_data.get("created_at") if existing_data else datetime.now(UTC).isoformat(),
                 "owner_id": existing_data.get("owner_id") if existing_data else None,

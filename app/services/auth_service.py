@@ -87,6 +87,30 @@ class AuthService:
         return self._db
 
     # =========================================================================
+    # Dependency guards
+    # =========================================================================
+
+    @staticmethod
+    def _require_db_available():
+        from app.services.database import database
+
+        if not database.is_available:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication database is not available",
+            )
+
+    @staticmethod
+    def _require_redis_available():
+        from app.services.redis_cache import redis_cache
+
+        if not redis_cache.is_available:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication cache is not available",
+            )
+
+    # =========================================================================
     # Password Hashing
     # =========================================================================
 
@@ -139,11 +163,8 @@ class AuthService:
             HTTPException: 400 if email already registered.
             HTTPException: 503 if database not available.
         """
-        if not self.db.is_available:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database not available",
-            )
+        self._require_db_available()
+        self._require_redis_available()
 
         # Check if email already exists
         existing_user = await self._get_user_by_email(email)
@@ -183,6 +204,9 @@ class AuthService:
             HTTPException: 400 if code invalid or expired.
             HTTPException: 404 if user not found.
         """
+        self._require_db_available()
+        self._require_redis_available()
+
         # Verify code
         is_valid = await self._verify_code(email, code, self.VERIFY_CODE_KEY.format(email=email))
         if not is_valid:
@@ -221,6 +245,9 @@ class AuthService:
             HTTPException: 400 if already verified.
             HTTPException: 429 if rate limited.
         """
+        self._require_db_available()
+        self._require_redis_available()
+
         user = await self._get_user_by_email(email)
         if not user:
             raise HTTPException(
@@ -269,6 +296,9 @@ class AuthService:
             HTTPException: 403 if account disabled.
             HTTPException: 429 if too many failed attempts.
         """
+        self._require_db_available()
+        self._require_redis_available()
+
         # Check for brute force attack BEFORE checking credentials
         is_locked, remaining_seconds = await self._check_login_lockout(email)
         if is_locked:
@@ -404,6 +434,8 @@ class AuthService:
         Raises:
             HTTPException: 401 if refresh token invalid.
         """
+        self._require_db_available()
+
         payload = jwt_service.verify_refresh_token(refresh_token)
         if not payload:
             raise HTTPException(
@@ -440,6 +472,8 @@ class AuthService:
             HTTPException: 400 if token invalid.
             HTTPException: 503 if Google OAuth not configured.
         """
+        self._require_db_available()
+
         if not GOOGLE_AUTH_AVAILABLE:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -526,6 +560,9 @@ class AuthService:
         Returns:
             True (always, to prevent email enumeration).
         """
+        self._require_db_available()
+        self._require_redis_available()
+
         user = await self._get_user_by_email(email)
 
         # Always return success to prevent email enumeration
@@ -559,6 +596,9 @@ class AuthService:
             HTTPException: 400 if code invalid or expired.
             HTTPException: 404 if user not found.
         """
+        self._require_db_available()
+        self._require_redis_available()
+
         # Verify code
         is_valid = await self._verify_code(email, code, self.RESET_CODE_KEY.format(email=email))
         if not is_valid:

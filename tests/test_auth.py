@@ -152,6 +152,71 @@ class TestPasswordHashing:
         assert AuthService.verify_password(password, hash2) is True
 
 
+class TestAuthInfrastructureGuards:
+    """Ensure auth endpoints fail fast when backing stores are unavailable."""
+
+    def _disable_infra(self, monkeypatch):
+        from app.services.database import database
+        from app.services.redis_cache import redis_cache
+
+        monkeypatch.setattr(database, "_connected", False)
+        monkeypatch.setattr(database, "engine", None)
+        monkeypatch.setattr(redis_cache, "_connected", False)
+        monkeypatch.setattr(redis_cache, "client", None)
+
+    def _enable_auth_settings(self, monkeypatch):
+        monkeypatch.setattr(settings, "ENABLE_USER_AUTH", True)
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "test-secret-key")
+
+    def test_register_returns_503_when_infra_unavailable(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        self._enable_auth_settings(monkeypatch)
+        self._disable_infra(monkeypatch)
+
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"email": "user@example.com", "password": "Password123", "display_name": "Test"},
+        )
+        assert resp.status_code == 503
+        assert "storage" in resp.json()["detail"].lower()
+
+    def test_login_returns_503_when_infra_unavailable(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        self._enable_auth_settings(monkeypatch)
+        self._disable_infra(monkeypatch)
+
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/auth/login",
+            json={"email": "user@example.com", "password": "Password123"},
+        )
+        assert resp.status_code == 503
+        assert "storage" in resp.json()["detail"].lower()
+
+    def test_password_reset_returns_503_when_infra_unavailable(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        self._enable_auth_settings(monkeypatch)
+        self._disable_infra(monkeypatch)
+
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/auth/password-reset",
+            json={"email": "user@example.com"},
+        )
+        assert resp.status_code == 503
+        assert "storage" in resp.json()["detail"].lower()
+
+
 # =============================================================================
 # Email Service Tests
 # =============================================================================

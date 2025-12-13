@@ -60,6 +60,8 @@ class AccessControl:
         is_public = conversation_data.get("is_public", False)
 
         # Rule 3: Blacklist has highest priority - deny
+        # NOTE: This intentionally blocks even the owner if they are blacklisted.
+        # If product requirements change, revisit this ordering.
         if user_id and user_id in blacklist:
             return False
 

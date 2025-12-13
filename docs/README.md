@@ -43,7 +43,8 @@ This directory contains the Mintlify documentation for Agent Chassis.
 
 Push the `docs/` directory to GitHub and connect it to Mintlify via the GitHub App.
 
+## Known limitations / follow-ups
 
-
-
-
+- MCP OAuth currently requires pre-seeded tokens; interactive callbacks are not implemented yet.
+- User auth requires Redis + Postgres connectivity; when disabled, auth endpoints return 503.
+- Access control intentionally lets blacklist override even the owner; revisit if requirements change.

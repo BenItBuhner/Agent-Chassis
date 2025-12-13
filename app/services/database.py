@@ -265,6 +265,8 @@ class Database:
                         conversation.system_prompt = system_prompt
                     if model is not None:
                         conversation.model = model
+                    if metadata is not None:
+                        conversation.metadata_ = metadata
                 else:
                     # Create new
                     conversation = Conversation(

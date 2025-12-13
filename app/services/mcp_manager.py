@@ -199,7 +199,15 @@ class MCPManager:
 
         auth = None
         if oauth_config and OAUTH_AVAILABLE:
-            auth = self._build_oauth_provider(name, url, oauth_config)
+            # TODO: Implement interactive OAuth callback handling. For now we require pre-seeded tokens.
+            storage = self._get_or_create_oauth_storage(name)
+            existing_tokens = await storage.get_tokens()
+            if not existing_tokens:
+                raise RuntimeError(
+                    f"OAuth configured for '{name}' but no tokens are available. "
+                    f"Pre-seed tokens in {settings.OAUTH_TOKENS_PATH} or implement callback handling."
+                )
+            auth = self._build_oauth_provider(name, url, oauth_config, storage=storage)
         elif oauth_config and not OAUTH_AVAILABLE:
             logger.warning("OAuth configured for %s but OAuth dependencies not available", name)
 
@@ -214,7 +222,21 @@ class MCPManager:
         self.sessions[name] = session
         logger.info("Connected to MCP server (Streamable HTTP): %s", name)
 
-    def _build_oauth_provider(self, server_name: str, server_url: str, oauth_config: dict) -> "OAuthClientProvider":
+    def _get_or_create_oauth_storage(self, server_name: str) -> "TokenStorage":
+        """Create or reuse token storage for this server."""
+        if server_name not in self._oauth_storages:
+            # Try to use file-based storage if available, otherwise in-memory
+            try:
+                from app.services.oauth_storage import FileTokenStorage
+
+                self._oauth_storages[server_name] = FileTokenStorage(server_name)
+            except ImportError:
+                self._oauth_storages[server_name] = InMemoryTokenStorage()
+        return self._oauth_storages[server_name]
+
+    def _build_oauth_provider(
+        self, server_name: str, server_url: str, oauth_config: dict, storage: "TokenStorage | None" = None
+    ) -> "OAuthClientProvider":
         """
         Build an OAuthClientProvider for authenticated MCP connections.
 
@@ -229,17 +251,7 @@ class MCPManager:
         if not OAUTH_AVAILABLE:
             raise ImportError("OAuth dependencies not available. Install mcp[auth] for OAuth support.")
 
-        # Create or reuse token storage for this server
-        if server_name not in self._oauth_storages:
-            # Try to use file-based storage if available, otherwise in-memory
-            try:
-                from app.services.oauth_storage import FileTokenStorage
-
-                self._oauth_storages[server_name] = FileTokenStorage(server_name)
-            except ImportError:
-                self._oauth_storages[server_name] = InMemoryTokenStorage()
-
-        storage = self._oauth_storages[server_name]
+        storage = storage or self._get_or_create_oauth_storage(server_name)
 
         # Build OAuth metadata from config
         redirect_uri = oauth_config.get("redirect_uri", settings.OAUTH_REDIRECT_URI)
